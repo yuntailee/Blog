@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOTP QR Code 生成器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .input-group {
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #qrcode {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border-left: 4px solid #007bff;
+        }
+        .info h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 TOTP QR Code 生成器</h1>
+        
+        <div class="input-group">
+            <label for="secret">TOTP Secret:</label>
+            <input type="text" id="secret" placeholder="輸入您的 TOTP Secret" 
+                   value="MA3SQM2GIQFTQL2H7ZL62LY73WOWOUZX">
+        </div>
+        
+        <div class="input-group">
+            <label for="username">使用者名稱:</label>
+            <input type="text" id="username" placeholder="輸入使用者名稱" value="admin">
+        </div>
+        
+        <div class="input-group">
+            <label for="issuer">發行者名稱:</label>
+            <input type="text" id="issuer" placeholder="輸入發行者名稱" value="Blog">
+        </div>
+        
+        <button onclick="generateQRCode()">生成 QR Code</button>
+        
+        <div id="qrcode"></div>
+        
+        <div class="info">
+            <h3>📱 使用說明</h3>
+            <ol>
+                <li>確認上方欄位已填入正確的資訊</li>
+                <li>點擊「生成 QR Code」按鈕</li>
+                <li>使用 Google Authenticator 掃描生成的 QR Code</li>
+                <li>或手動輸入 Secret 到 Google Authenticator</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function generateQRCode() {
+            const secret = document.getElementById('secret').value.trim();
+            const username = document.getElementById('username').value.trim();
+            const issuer = document.getElementById('issuer').value.trim();
+            
+            if (!secret || !username || !issuer) {
+                alert('請填寫所有欄位');
+                return;
+            }
+            
+            // 生成 otpauth URI
+            const otpauthUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(username)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
+            
+            // 清除之前的 QR Code
+            document.getElementById('qrcode').innerHTML = '';
+            
+            // 生成 QR Code
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = ''; // 清除之前的內容
+            
+            // 檢查 QRCode 是否可用
+            if (typeof QRCode !== 'undefined') {
+                // 使用 qrcode.js 庫
+                try {
+                    QRCode.toCanvas(qrContainer, otpauthUri, {
+                        width: 300,
+                        margin: 2,
+                        color: {
+                            dark: '#000000',
+                            light: '#FFFFFF'
+                        }
+                    }, function (error) {
+                        if (error) {
+                            console.error(error);
+                            generateQRCodeFallback(otpauthUri);
+                        } else {
+                            showUriInfo(otpauthUri);
+                        }
+                    });
+                } catch (e) {
+                    console.error('QRCode.toCanvas error:', e);
+                    generateQRCodeFallback(otpauthUri);
+                }
+            } else {
+                // 如果 QRCode 庫未載入，使用備用方案
+                generateQRCodeFallback(otpauthUri);
+            }
+        }
+        
+        function generateQRCodeFallback(otpauthUri) {
+            const qrContainer = document.getElementById('qrcode');
+            
+            // 使用線上 API 生成 QR Code
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(otpauthUri)}`;
+            
+            const img = document.createElement('img');
+            img.src = qrApiUrl;
+            img.alt = 'TOTP QR Code';
+            img.style.border = '1px solid #ddd';
+            img.style.borderRadius = '5px';
+            img.onerror = function() {
+                qrContainer.innerHTML = '<p style="color: red;">無法生成 QR Code。請使用手動輸入方式。</p>';
+                showUriInfo(otpauthUri);
+            };
+            
+            qrContainer.appendChild(img);
+            showUriInfo(otpauthUri);
+        }
+        
+        function showUriInfo(otpauthUri) {
+            const qrContainer = document.getElementById('qrcode');
+            const uriDiv = document.createElement('div');
+            uriDiv.style.marginTop = '15px';
+            uriDiv.style.padding = '10px';
+            uriDiv.style.backgroundColor = '#f0f0f0';
+            uriDiv.style.borderRadius = '5px';
+            uriDiv.style.fontSize = '12px';
+            uriDiv.style.wordBreak = 'break-all';
+            uriDiv.innerHTML = '<strong>URI:</strong><br>' + otpauthUri;
+            qrContainer.appendChild(uriDiv);
+        }
+        
+        // 頁面載入時等待庫載入後再生成
+        window.onload = function() {
+            // 等待 QRCode 庫載入
+            if (typeof QRCode !== 'undefined') {
+                generateQRCode();
+            } else {
+                // 如果庫未載入，等待一下再試
+                setTimeout(function() {
+                    if (typeof QRCode !== 'undefined') {
+                        generateQRCode();
+                    } else {
+                        // 使用備用方案
+                        const secret = document.getElementById('secret').value.trim();
+                        const username = document.getElementById('username').value.trim();
+                        const issuer = document.getElementById('issuer').value.trim();
+                        if (secret && username && issuer) {
+                            const otpauthUri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(username)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
+                            generateQRCodeFallback(otpauthUri);
+                        }
+                    }
+                }, 1000);
+            }
+        };
+    </script>
+</body>
+</html>
